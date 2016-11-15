@@ -55,7 +55,7 @@ class PathPlanning:
         if not (self.astar_res == None):
             plt_x = [pt[0] for pt in self.astar_res]
             plt_y = [pt[1] for pt in self.astar_res]
-            plt.plot(plt_x, plt_y, 'b-')
+            plt.plot(plt_x, plt_y, 'b*')
 
         plt.show()
 
@@ -64,14 +64,15 @@ class PathPlanning:
             pt[1] >= 0 and pt[1] < self.MAP_SIZE and \
             self.M[pt] == 0
 
-    def dijkstra_step(self, curr, tgt, neighbours, distance, previous, unvisited):
+    def dijkstra_step(self, curr, tgt, distance, previous, unvisited):
         if (self.inRange(tgt) and tgt in unvisited):
-            if (not tgt in neighbours):
-                neighbours.append(tgt)
+
             tentative_dist = distance[curr] + 1
             if (tentative_dist < distance[tgt]):
                 distance[tgt] = tentative_dist
                 previous[tgt] = curr
+                print "previous of %s is %s" %(str(tgt), str(curr))
+        return
 
     def dijkstra(self, start, end):
         # input: start and end are lists of len 2
@@ -81,7 +82,7 @@ class PathPlanning:
         unvisited = {} # 2x1 list to double
         previous = {}
         distance = {}
-        neighbours = [] # queue of 2x1 list
+
         for x in range(self.MAP_SIZE):
             for y in range(self.MAP_SIZE):
                 if not self.inRange((x,y)):
@@ -91,63 +92,142 @@ class PathPlanning:
                 previous[(x,y)] = None
 
         distance[start] = 0
-        neighbours.append(start)
-        while (len(neighbours) > 0):
+
+        while (len(unvisited) > 0):
+            #print "len of unvisited is %d" %len(unvisited)
             mindist = np.inf
             mincoord = None
-            for i in range(len(neighbours)):
-                if distance[neighbours[i]] < mindist:
-                    mincoord = i
-            curr = neighbours.pop(i)
-            unvisited.pop(curr)
+            for pt in unvisited:
+                if distance[pt] < mindist:
+                    mindist = distance[pt]
+                    mincoord = pt
+            print "mindist = %d, mincoord = %s" %(mindist, str(mincoord))
 
+            if (mindist == np.inf):
+                self.dijkstra_res = None
+                return
+
+            curr = mincoord
+            unvisited.pop(curr)
             if (curr == end):
                 respath = [end]
                 x = end
 
                 while(x != start):
-                    
+                    print "x=%s" %str(x)
                     respath.insert(0, previous[x])
                     x = previous[x]
                     # assume no cycle specified bt the previous
                 self.dijkstra_res = respath
                 return
 
-            tgt = (curr[0]-1, curr[1]-1)
-            self.dijkstra_step(curr, tgt, neighbours, distance, previous, unvisited)
+
+
 
             tgt = (curr[0], curr[1]-1)
-            self.dijkstra_step(curr, tgt, neighbours, distance, previous, unvisited)
-
-            tgt = (curr[0]+1, curr[1]-1)
-            self.dijkstra_step(curr, tgt, neighbours, distance, previous, unvisited)
-
-            tgt = (curr[0]-1, curr[1])
-            self.dijkstra_step(curr, tgt, neighbours, distance, previous, unvisited)
-
-            tgt = (curr[0]+1, curr[1])
-            self.dijkstra_step(curr, tgt, neighbours, distance, previous, unvisited)
-
-            tgt = (curr[0]-1, curr[1]+1)
-            self.dijkstra_step(curr, tgt, neighbours, distance, previous, unvisited)
+            self.dijkstra_step(curr, tgt, distance, previous, unvisited)
 
             tgt = (curr[0], curr[1]+1)
-            self.dijkstra_step(curr, tgt, neighbours, distance, previous, unvisited)
+            self.dijkstra_step(curr, tgt, distance, previous, unvisited)
+
+            tgt = (curr[0]-1, curr[1])
+            self.dijkstra_step(curr, tgt, distance, previous, unvisited)
+
+            tgt = (curr[0]+1, curr[1])
+            self.dijkstra_step(curr, tgt, distance, previous, unvisited)
+
+            tgt = (curr[0]+1, curr[1]-1)
+            self.dijkstra_step(curr, tgt, distance, previous, unvisited)
+
+            tgt = (curr[0]-1, curr[1]+1)
+            self.dijkstra_step(curr, tgt, distance, previous, unvisited)
+
+
+
+            tgt = (curr[0]-1, curr[1]-1)
+            self.dijkstra_step(curr, tgt, distance, previous, unvisited)
 
             tgt = (curr[0]+1, curr[1]+1)
-            self.dijkstra_step(curr, tgt, neighbours, distance, previous, unvisited)
-
+            self.dijkstra_step(curr, tgt, distance, previous, unvisited)
 
 
 
         self.dijkstra_res = "None"
         return
 
+    def astar_step(self, curr, tgt, fvalues, previous, unvisited):
+        if (self.inRange(tgt) and tgt in unvisited):
+            tentative_f = fvalues[curr] + 1 + \
+                math.sqrt(tgt[0] ** 2 + tgt[1] ** 2)
+            if (tentative_f < fvalues[tgt]):
+                fvalues[tgt] = tentative_f
+                previous[tgt] = curr
+        return
+
+
     def astar(self, start, end):
-        pass
+        unvisited = {}
+        fvalues = {}
+        previous = {}
+
+        for x in range(self.MAP_SIZE):
+            for y in range(self.MAP_SIZE):
+                if (self.M[x][y] == 0):
+                    unvisited[(x,y)] = True
+                    previous[(x,y)] = None
+                    fvalues[(x,y)] = np.inf
+
+        fvalues[start] = 0
+        while(len(unvisited) > 0):
+            minfvalue = np.inf
+            mincoord = None
+            for pt in unvisited:
+                if (fvalues[pt] < minfvalue):
+                    minfvalue = fvalues[pt]
+                    mincoord = pt
+            curr = mincoord
+            if (minfvalue == np.inf):
+                self.astar_res = None
+                return
+
+            unvisited.pop(curr)
+
+            if (curr == end):
+                respath = [end]
+                x = end
+                while (x != start):
+                    respath.insert(0, previous[x])
+                    x = previous[x]
+                self.astar_res = respath
+                return
+
+            tgt = (curr[0]-1, curr[1]-1)
+            self.astar_step(curr, tgt, fvalues, previous, unvisited)
+
+            tgt = (curr[0], curr[1]-1)
+            self.astar_step(curr, tgt, fvalues, previous, unvisited)
+
+            tgt = (curr[0]+1, curr[1]-1)
+            self.astar_step(curr, tgt, fvalues, previous, unvisited)
+
+            tgt = (curr[0]-1, curr[1])
+            self.astar_step(curr, tgt, fvalues, previous, unvisited)
+
+            tgt = (curr[0]+1, curr[1])
+            self.astar_step(curr, tgt, fvalues, previous, unvisited)
+
+            tgt = (curr[0]-1, curr[1]+1)
+            self.astar_step(curr, tgt, fvalues, previous, unvisited)
+
+            tgt = (curr[0], curr[1]+1)
+            self.astar_step(curr, tgt, fvalues, previous, unvisited)
+
+            tgt = (curr[0]+1, curr[1]+1)
+            self.astar_step(curr, tgt, fvalues, previous, unvisited)
 
 
 if __name__ == "__main__":
     p = PathPlanning()
     p.dijkstra((0,0), (34,34))
+    #p.astar((0, 0), (34,34))
     p.plotMap()

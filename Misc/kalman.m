@@ -30,8 +30,9 @@ xlabel('time step');
 ylabel('x');
 print('NoNoise', '-dpng');
 
+x_baseline = x;
 %% Apply noise, no Kalman
-clear all; clc;
+close all; clc;
 x0 = 100;
 x_tgt = 0;
 x = [x0];
@@ -52,13 +53,13 @@ for k = 1:sim_time
 end
 figure;
 plot(x);
-title(strcat('Applied noise: r=20, std(x)=', num2str(std(x))));
+title(strcat('Applied noise: r=20, std(x-x_{base})=', num2str(std(x-x_baseline))));
 xlabel('time step');
 ylabel('x');
 print('WithNoise_r=20', '-dpng');
 
 %% Kalman filter
-clear all;clc;close all;
+clc;close all;
 x0 = 100;
 x_tgt = 0;
 x = [x0];     % estimated x values
@@ -68,7 +69,7 @@ ze = [];      % estimation of measurement
 u = [-10];    % Need this random initialization
 sim_time = 100;
 
-r = 20;
+r = 1;
 x_k = x0;
 
 K = 0.1;
@@ -102,9 +103,10 @@ for k = 2:sim_time
 end
 figure;
 plot(xtrue);
-title(strcat('Kalman with noise: r=20, std(x)=', num2str(std(xtrue))));
+xtrue = [x0 xtrue]
+title(strcat('Kalman with noise: r=1, std(x-x_{base})=', num2str(std(xtrue-x_baseline))));
 xlabel('time step');
 ylabel('x');
-print('KalmanWithNoise_r=20', '-dpng');
+print('KalmanWithNoise_r=1', '-dpng');
 
 
