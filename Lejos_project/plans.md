@@ -10,6 +10,8 @@ Plan
 (1) Pick the pizza.  
 (2) Go directly into the obstacles. Use sensor on the side to detect, so that the car can go around the obstacle.  
 (3) Meanwhile, use the odometer in each motor to calculate the current location of the robot.  
+[tutorial](https://view.officeapps.live.com/op/view.aspx?src=http://www.cs.scranton.edu/~bi/2015s-html/cs358/EV3-Motor-Guide.docx)
+[doc](http://www.lejos.org/ev3/docs/lejos/hardware/motor/BaseRegulatedMotor.html)
 
 
 ### Hardware requirement:
@@ -19,8 +21,19 @@ Plan
 - 1 ultrasound sensor facing front, detecting obstacles  
 - Total 6 ports utilized.  
 
+
+
 ### Data
 齿轮比：
   最小的是8  
   黄色的是12  
   四孔灰色24  
+  Grip的齿轮比改了
+
+ Port 1: Ultrasounic
+ Port 2: Infrared
+ Port 3: Gyro
+
+ Port A: Grip Motor
+ Port B: Left Motor
+ Port C: Right Motor
