@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.*;
 
 public class PizzaDelivery {
-    private static final int BASE_SPEED = 360;
+    private static final int BASE_SPEED = 220;
     // Base speed for motors.
 
     private static final double l = 0.0463888;
@@ -27,11 +27,33 @@ public class PizzaDelivery {
     // Coordinates of the robot, at any given time point. In centimeters
     // To be updated in steerToColor() and pivotAndDeliverPizza() using a modified unicycle model.
 
-    private static EV3UltrasonicSensor sonic = new EV3UltrasonicSensor(SensorPort.S1);
-    private static EV3ColorSensor color = new EV3ColorSensor(SensorPort.S2);
-    private static EV3GyroSensor tilt = new EV3GyroSensor(SensorPort.S3);
+    private static EV3UltrasonicSensor sonic;
+    private static EV3ColorSensor color;
+    private static EV3GyroSensor tilt;
     // Three sensors, corresponding to our three sensor ports
 
+
+    private static double GYRO_OFFSET = 0;
+
+    private static void initialize(){
+        // Initialize the sensors
+        sonic = new EV3UltrasonicSensor(SensorPort.S1);
+        color = new EV3ColorSensor(SensorPort.S2);
+        tilt = new EV3GyroSensor(SensorPort.S3);
+
+        // Reset the Motor encoders
+        Motor.A.resetTachoCount();
+        Motor.B.resetTachoCount();
+        Motor.C.resetTachoCount();
+
+        // Offset the initial error of gyro sensor
+        int tiltSampleSize = tilt.sampleSize();
+        float[] tiltSample = new float[tiltSampleSize];
+        tilt.getAngleMode().fetchSample(tiltSample);
+        GYRO_OFFSET = tiltSample[0];
+
+
+    }
     private static char[] getInputInterface() {
         char pizzachoice, circlechoice, houseside, housenumber;
         LCD.clear();
@@ -160,6 +182,7 @@ public class PizzaDelivery {
 
 
         int gyroSampleSize = tilt.sampleSize();
+
         float[] tiltSample = new float[gyroSampleSize];
 
         int colorSampleSize = color.sampleSize();
@@ -187,7 +210,7 @@ public class PizzaDelivery {
                 theta_d = Math.pi / 2;
             }
             tilt.getAngleMode().fetchSample(tiltsample, 0);
-            double theta = tiltsample[0] + Math.pi / 2;
+            double theta = tiltsample[0] - GYRO_OFFSET + Math.pi / 2;
             double v_diff = K_p * (theta_d - theta);
             Motor.B.setSpeed(BASE_SPEED - v_diff);
             Motor.C.setSpeed(BASE_SPEED + v_diff);
@@ -340,7 +363,7 @@ public class PizzaDelivery {
             int gyroSampleSize = tilt.sampleSize();
             float[] tiltSample = new float[gyroSampleSize];
             tilt.getAngleMode().fetchSample(tiltSample);
-            double theta = tiltSample[0];
+            double theta = tiltSample[0] - GYRO_OFFSET;
             x += (vdt * Math.cos(theta) * (backwards? (-1) : 1));
             y += (vdt * Math.sin(theta) * (backwards? (-1) : 1));
 
@@ -411,8 +434,9 @@ public class PizzaDelivery {
         Motor.C.setSpeed(BASE_SPEED);
 
         // Steer towards positive x axis orientation
-        Motor.B.rotate(+(int)((Math.pi/2-tileSample[0]) / (Math.pi/2) * RIGHT_ANGLE), true);
-        Motor.C.rotate(-(int)((Math.pi/2-tileSample[0]) / (Math.pi/2) * RIGHT_ANGLE));
+        tiltSample[0] -= GYRO_OFFSET;
+        Motor.B.rotate(+(int)((Math.pi/2-tiltSample[0]) / (Math.pi/2) * RIGHT_ANGLE), true);
+        Motor.C.rotate(-(int)((Math.pi/2-tiltSample[0]) / (Math.pi/2) * RIGHT_ANGLE));
 
         // First steer to the closest position on boundary line at x=110, y=396.5
         double delta_x = 110 - x;
@@ -437,6 +461,7 @@ public class PizzaDelivery {
 
     }
     public static void main(String[] args) throws Exception {
+        initialize();
         char[] userSelectionList = getInputInterface();
 
         steerToPizzaLocation(userSelectionList[0]);
