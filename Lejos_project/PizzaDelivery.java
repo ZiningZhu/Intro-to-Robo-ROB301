@@ -56,6 +56,14 @@ public class PizzaDelivery {
 
     }
     private static char[] getInputInterface() {
+        /* Interface for gathering user selection.
+        * pizza location, circle color, house side and house number are selected
+        * and stored to a char[] array.
+        * pizza location - 0 left; 1 right;
+        * circle color - 0 green (left); 1 blue (middle); 2 red (right);
+        * house side - 0 left; 1 right;
+        * house number - integer ranging from 0 to 3, inclusive.
+        */
         char pizzachoice, circlechoice, houseside;
         int housenumber;
         LCD.clear();
@@ -99,7 +107,7 @@ public class PizzaDelivery {
         LCD.clear();
         System.out.println("Select house number: UP+/DOWN-, ENTER confirm");
         housenumber = 0;
-        System.out.println("Current number: " + housenumber);
+        System.out.println("Init number: " + housenumber);
         boolean confirmed = false;
         while (!confirmed) {
             if (Button.ENTER.isDown()) {
@@ -109,16 +117,21 @@ public class PizzaDelivery {
             }
             if (Button.UP.isDown()) {
                 housenumber += 1;
+                if (housenumber > 4)
+                    housenumber--;
                 System.out.println("Curr number: " + housenumber);
                 while (Button.UP.isDown()) ;
             }
             if (Button.DOWN.isDown()) {
                 housenumber -= 1;
+                if (housenumber < 0)
+                    housenumber++;
                 System.out.println("Curr number: " + housenumber);
                 while (Button.DOWN.isDown()) ;
             }
         }
         System.out.println("Housenumber confirmed: " + housenumber);
+        System.out.println("Press ENTER to run!");
         while(!Button.ENTER.isDown()){
         	while(Button.ENTER.isDown());
         }
@@ -133,8 +146,10 @@ public class PizzaDelivery {
 
 
     private static void rotateRobot(double angle) {
-    	// angle<0 then turn right;
-    	// angle>0 then turn left
+    	/* angle<0 then turn right;
+    	* angle>0 then turn left;
+        * rotate until the robot rotates the desired angle (double)
+        */
     	angle = angle * 0.95;
         Motor.B.setSpeed(BASE_SPEED/2);
         Motor.C.setSpeed(BASE_SPEED/2);
@@ -181,13 +196,12 @@ public class PizzaDelivery {
         Motor.C.rotate((int)(20 / l));
         if (pizzachoice == 0) { // left one
         	rotateRobot(90);
-            //Motor.B.rotate(-RIGHT_ANGLE, true);
-            //Motor.C.rotate(RIGHT_ANGLE);
-        } else {
+
+        } else { // pizza is at right
         	rotateRobot(-90);
         }
         Motor.B.rotate((int)((55-ROBOT_LENGTH) / l), true);
-        // FIXME - should deduct by the length of robot
+        // should deduct by the length of robot
         Motor.C.rotate((int)((55-ROBOT_LENGTH) / l));
     }
 
@@ -203,7 +217,7 @@ public class PizzaDelivery {
         Motor.B.rotate(-(int)((55-ROBOT_LENGTH) / l), true);
         Motor.C.rotate(-(int)((55-ROBOT_LENGTH) / l));
 
-        if (pizzachoice == 0) { // left pizza. I should turn right now
+        if (pizzachoice == 0) { // left pizza. Robot should turn right now
         	rotateRobot(-90);
 
         } else {
@@ -234,7 +248,7 @@ public class PizzaDelivery {
         int colorSampleSize = color.sampleSize();
         float[] colorSample = new float[colorSampleSize];
 
-
+        // Decide the fixed point that robot should steer to
         if (userSelectionList[1] == 0) {
             x_tgt = -29.5;
             y_tgt = 192.7 + 3;
@@ -249,14 +263,13 @@ public class PizzaDelivery {
             double K_p = 5;
             double theta_d = 0;
 
-            /*
-            if (x_tgt > x) {
-                theta_d = Math.atan((y_tgt - y) / (x_tgt - x)) * 180 / Math.PI;
-            } else if (x_tgt < x){
-                theta_d = Math.atan((y_tgt - y) / (x_tgt - x)) * 180 / Math.PI;
-            } else {
-                theta_d = 90;
-            }
+            /* Steer to a fixed point (either of the three color circles):
+            * Now that the robot may just finishes avoiding obstacle,
+            * and may head to a random direction.
+            * We are using a two-step steering, taking advantage of the robot's
+            * ability to turn in the same location.
+            * First rotate to the desired direction (specified by theta_d)
+            * Then head forward and continue avoiding obstacles.
             */
             if (Math.abs(x_tgt - x) < 0.001) {
             	theta_d = 90;
@@ -272,7 +285,7 @@ public class PizzaDelivery {
             Motor.B.forward();
             Motor.C.forward();
 
-            // update x and y
+            // update x and y at every time step (while loop iteration)
             double bcurr = Motor.B.getPosition();
             double ccurr = Motor.C.getPosition();
             double brot = bcurr - bprev;
@@ -284,7 +297,6 @@ public class PizzaDelivery {
             y += (vdt * Math.sin(theta * Math.PI / 180));
 
             // Add obstacle avoidance code
-
             color.getRedMode().fetchSample(colorSample, 0);
             double THRESHOLD = 1.0;
             if (colorSample[0] * 100 > THRESHOLD) {
@@ -299,9 +311,20 @@ public class PizzaDelivery {
             }
 
             System.out.println(String.format("x=%.1f, y=%.1f, t=%.1f", x,y,theta));
+
+            // Exception handling code: when steering does not work and robot hits the boundary
+            // Stop, and freeze until a button is pressed.
+            if (x < -160 || x > 160 || y < 0 || y > 400) {
+                System.out.println("Out of Range!")
+                while (!Button.ENTER.isDown()) {
+                    while (Button.ENTER.isDown()) ;
+                }
+                return;
+            }
+
         }
 
-        // Now that you arrived at the circle. Rotate back to the north.
+        // Now that the robot arrived at the circle. Rotate back to the north.
         tilt.fetchSample(tiltsample, 0);
         double theta = tiltsample[0] - GYRO_OFFSET;
         rotateRobot(90 - theta);
@@ -310,7 +333,12 @@ public class PizzaDelivery {
     }
 
     private static void circumventObstacle(double[] stateRecorder) {
-        // Turn right 90 deg;
+        /* circumvent Obstacle: This is called when the light sensor at head
+        * detects an obstacle. How do we avoid obstacle?
+        * first turn right 90 deg, to make the ultrasonic sensor face the obstacle.
+        * then follow "wall" until the robot completely goes pass the obstacle.
+        * then turn back (left) 90 degs
+        **/
 
         rotateRobot(-90);
 
@@ -323,10 +351,13 @@ public class PizzaDelivery {
         double DIST_MAX = 0.5; // in meters. Same as sonic sampling
         double DIST_FOLLOW = 0.15;
 
-        // Terminate when ultrasound sensor detects infinite distance
-        while (sonicsample[0] < DIST_MAX) {
 
-            // FIXME - make sure all sensor arrays are initialized before visited
+        while (sonicsample[0] < DIST_MAX) {
+            /* Wall following. Uses a simple P controller and caps the velocity.
+            * Terminates when ultrasound sensor detects infinite distance
+            * (a.k.a: when the robot sensor goes pass the obstacle)
+            */
+
             sonic.fetchSample(sonicsample, 0);
 
             double K_p = 0.05;
@@ -342,17 +373,23 @@ public class PizzaDelivery {
             Motor.C.forward();
         }
 
+        // Additionally steer forward for ROBOT_LENGTH to avoid scratching
         Motor.B.rotate((int)ROBOT_LENGTH);
         Motor.C.rotate((int)ROBOT_LENGTH);
 
+        // turn back (left) 90 degs
+        rotateRobot(-90);
     }
 
     private static int capping(int v) {
+        /*Clamps the speed so that P controller will not be too crazy*/
         return Math.max(0.5*BASE_SPEED, Math.min(1.5*BASE_SPEED, v));
     }
 
     private static void pivotAndDeliverPizza(char[] userSelectionList) {
-        // Assume that the robot already arrived at either of green, blue, and red circle.
+        /* Now that the robot already arrived at either of green, blue, and red circle.
+        And is facing north (positive y axis)
+        */
         if (userSelectionList[1] == 0) {
             // turn left for 28.5 deg
         	rotateRobot(28.5);
@@ -433,7 +470,7 @@ public class PizzaDelivery {
 
             // Record distance. Switch the 'houseDetected' property when distance goes beyond the threshold.
             // To avoid effect of fluctuation, applied a median filter of size N=3 to it.
-            // FIXME - I assume all sensor data (including those Infinity) are comparable
+            // I assume all sensor data (including those Infinity) are comparable
             int sonicSampleSize = sonic.sampleSize();
             float[] sonicsample = new float[sonicSampleSize];
             sonic.fetchSample(sonicsample, 0);
@@ -475,6 +512,9 @@ public class PizzaDelivery {
     }
 
     private static double median(double[] A) {
+        /* Helper function. Inputs an array of double
+        * Returns the median of the array.
+        */
         double[] B = Arrays.copyOf(A, A.length);
         Arrays.sort(B);
         if (A.length % 2 == 0) {
@@ -484,7 +524,7 @@ public class PizzaDelivery {
         }
     }
     private static void steerBackAfterDelivery() {
-        // Now we know x, y, and theta
+        // Now we know x, y, and theta, and y is at the farthest end of playground.
         int gyroSampleSize = tilt.sampleSize();
         float[] tiltSample = new float[gyroSampleSize];
         tilt.getAngleMode().fetchSample(tiltSample, 0);
@@ -524,8 +564,8 @@ public class PizzaDelivery {
         steerBackToCenter(userSelectionList[0]);
         steerToColor(userSelectionList);
 
-        //pivotAndDeliverPizza(userSelectionList);
+        pivotAndDeliverPizza(userSelectionList);
 
-        //steerBackAfterDelivery();
+        steerBackAfterDelivery();
     }
 }
