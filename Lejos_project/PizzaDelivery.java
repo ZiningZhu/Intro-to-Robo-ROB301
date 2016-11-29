@@ -127,7 +127,7 @@ public class PizzaDelivery {
         res[1] = circlechoice;
         res[2] = houseside;
         res[3] = (char)housenumber;
-        
+
         return res;
     }
 
@@ -141,9 +141,9 @@ public class PizzaDelivery {
         int tiltSampleSize = tilt.sampleSize();
         float[] tiltSample = new float[tiltSampleSize];
         tilt.getAngleMode().fetchSample(tiltSample, 0);
-        
+
         float startAngle = tiltSample[0];
-       
+
         double startTime = System.currentTimeMillis();
         if (angle < 0) {
         	double rotatedAngle = tiltSample[0] - startAngle;
@@ -156,7 +156,7 @@ public class PizzaDelivery {
 	        	double currTime = System.currentTimeMillis();
 	        	if (currTime - startTime > 5000) break;
         	}
-        	
+
         } else {
         	double rotatedAngle = tiltSample[0] - startAngle;
         	while (rotatedAngle < angle) {
@@ -171,7 +171,7 @@ public class PizzaDelivery {
         }
         Motor.B.setSpeed(BASE_SPEED);
         Motor.C.setSpeed(BASE_SPEED);
-        
+
     }
     private static void steerToPizzaLocation(char pizzachoice) {
         Motor.B.setSpeed(BASE_SPEED);
@@ -205,7 +205,7 @@ public class PizzaDelivery {
 
         if (pizzachoice == 0) { // left pizza. I should turn right now
         	rotateRobot(-90);
-            
+
         } else {
         	rotateRobot(90);
         }
@@ -218,6 +218,7 @@ public class PizzaDelivery {
     }
 
     private static void steerToColor(char[] userSelectionList) {
+        // Steers to the color circle facing exactly north (theta=90 deg)
         // Needs to avoid obstacles and record distances
         x = 0; // in centimeters
         y = 2; // in centimeters
@@ -247,7 +248,7 @@ public class PizzaDelivery {
         while (distdiff(x, y, x_tgt, y_tgt) > 1.0) {
             double K_p = 5;
             double theta_d = 0;
-            
+
             /*
             if (x_tgt > x) {
                 theta_d = Math.atan((y_tgt - y) / (x_tgt - x)) * 180 / Math.PI;
@@ -257,10 +258,10 @@ public class PizzaDelivery {
                 theta_d = 90;
             }
             */
-            if (x_tgt - x < 0.001) {
+            if (Math.abs(x_tgt - x) < 0.001) {
             	theta_d = 90;
             } else if (x_tgt > x) {
-            	theta_d = Math.atan((y_tgt - y) / (x_tgt - x)) / Math.PI * 180;          	
+            	theta_d = Math.atan((y_tgt - y) / (x_tgt - x)) / Math.PI * 180;
             } else if (x_tgt < x) {
             	theta_d = Math.atan((y_tgt - y) / (x_tgt - x)) / Math.PI * 180 + 180;
             }
@@ -270,7 +271,7 @@ public class PizzaDelivery {
 
             Motor.B.forward();
             Motor.C.forward();
-            
+
             // update x and y
             double bcurr = Motor.B.getPosition();
             double ccurr = Motor.C.getPosition();
@@ -283,7 +284,7 @@ public class PizzaDelivery {
             y += (vdt * Math.sin(theta * Math.PI / 180));
 
             // Add obstacle avoidance code
-           
+
             color.getRedMode().fetchSample(colorSample, 0);
             double THRESHOLD = 1.0;
             if (colorSample[0] * 100 > THRESHOLD) {
@@ -299,6 +300,11 @@ public class PizzaDelivery {
 
             System.out.println(String.format("x=%.1f, y=%.1f, t=%.1f", x,y,theta));
         }
+
+        // Now that you arrived at the circle. Rotate back to the north.
+        tilt.fetchSample(tiltsample, 0);
+        double theta = tiltsample[0] - GYRO_OFFSET;
+        rotateRobot(90 - theta);
 
 
     }
@@ -327,17 +333,24 @@ public class PizzaDelivery {
             double err = DIST_FOLLOW - sonicsample[0];
             int v_diff = (int)(err * K_p);
 
-            Motor.B.setSpeed(BASE_SPEED - v_diff);
-            Motor.C.setSpeed(BASE_SPEED + v_diff);
+            double leftSpeed = capping(BASE_SPEED - v_diff);
+            double rightSpeed = capping(BASE_SPEED + v_diff);
+            Motor.B.setSpeed((int)leftSpeed));
+            Motor.C.setSpeed((int)rightSpeed);
 
             Motor.B.forward();
             Motor.C.forward();
         }
-        
+
         Motor.B.rotate((int)ROBOT_LENGTH);
         Motor.C.rotate((int)ROBOT_LENGTH);
 
     }
+
+    private static int capping(int v) {
+        return Math.max(0.5*BASE_SPEED, Math.min(1.5*BASE_SPEED, v));
+    }
+
     private static void pivotAndDeliverPizza(char[] userSelectionList) {
         // Assume that the robot already arrived at either of green, blue, and red circle.
         if (userSelectionList[1] == 0) {
@@ -371,7 +384,7 @@ public class PizzaDelivery {
         	double currTime = System.currentTimeMillis();
             if (houseCount == userSelectionList[3] || (currTime - startTime) > 60000) {
                 dropPizza();
-                // TODO - let robot steer until reaching the base line.
+                // let robot steer until reaching the base line.
                 double diff_y = 356.7 - y;
                 double alpha = 0;
                 if (userSelectionList[1] == 0) {
@@ -482,7 +495,7 @@ public class PizzaDelivery {
         // Steer towards positive x axis orientation
         tiltSample[0] -= GYRO_OFFSET;
         rotateRobot(-(90-tiltSample[0]));
-        
+
         // First steer to the closest position on boundary line at x=110, y=396.5
         double delta_x = 110 - x;
         Motor.B.rotate((int)(delta_x / l), true);
