@@ -4,12 +4,13 @@ import lejos.hardware.lcd.*;
 import lejos.hardware.port.SensorPort;
 import lejos.hardware.sensor.EV3UltrasonicSensor;
 import lejos.hardware.sensor.EV3ColorSensor;
+import lejos.hardware.sensor.EV3GyroSensor;
 import java.lang.Math;
 import java.util.ArrayList;
 import java.util.*;
 
 public class PizzaDelivery {
-    private static final int BASE_SPEED = 220;
+    private static final int BASE_SPEED = 120;
     // Base speed for motors.
 
     private static final double l = 0.0463888;
@@ -19,7 +20,7 @@ public class PizzaDelivery {
     // to achieve a right angle turn of the robot
     private static final int ROBOT_LENGTH = 10;
     // in centimeters
-    private static final int GRIP_ANGLE = 120;
+    private static final int GRIP_ANGLE = 80;
     // Angle the motor has to rotate to close the grip
 
     private static double x = 0;
@@ -49,13 +50,14 @@ public class PizzaDelivery {
         // Offset the initial error of gyro sensor
         int tiltSampleSize = tilt.sampleSize();
         float[] tiltSample = new float[tiltSampleSize];
-        tilt.getAngleMode().fetchSample(tiltSample);
+        tilt.getAngleMode().fetchSample(tiltSample, 0);
         GYRO_OFFSET = tiltSample[0];
 
 
     }
     private static char[] getInputInterface() {
-        char pizzachoice, circlechoice, houseside, housenumber;
+        char pizzachoice, circlechoice, houseside;
+        int housenumber;
         LCD.clear();
         System.out.println("Press ENTER to start selection...");
         while(!Button.ENTER.isDown()) ;
@@ -67,7 +69,7 @@ public class PizzaDelivery {
         if (Button.LEFT.isDown()) pizzachoice = 0;
         else pizzachoice = 1;
         while ((Button.LEFT.isDown()) || (Button.RIGHT.isDown())) ;
-        System.out.println("Pizza selected" + (pizzachoice==0?"left":"right")));
+        System.out.println("Pizza selected" + (pizzachoice==0?" left":" right"));
 
         LCD.clear();
         System.out.println("Select circle: LEFT/UP/RIGHT");
@@ -75,13 +77,13 @@ public class PizzaDelivery {
         String selectedCircleName = "";
         if (Button.LEFT.isDown()) {
             circlechoice = 0;
-            selectedCircleName = "Green";
+            selectedCircleName = " Green";
         } else if (Button.UP.isDown()) {
-            circleChoice = 1;
-            selectedCircleName = "Blue";
+            circlechoice = 1;
+            selectedCircleName = " Blue";
         } else {
-            circleChoice = 2;
-            selectedCircleName = "Red";
+            circlechoice = 2;
+            selectedCircleName = " Red";
         }
         while ((Button.LEFT.isDown()) || (Button.UP.isDown()) || (Button.RIGHT.isDown())) ;
         System.out.println("Circle selected: " + selectedCircleName);
@@ -92,7 +94,7 @@ public class PizzaDelivery {
         if (Button.LEFT.isDown()) houseside = 0;
         else houseside = 1;
         while ((Button.LEFT.isDown()) || (Button.RIGHT.isDown())) ;
-        System.out.println("House side selected" + (houseside==0?"left":"right")));
+        System.out.println("House side selected" + (houseside==0?" left":" right"));
 
         LCD.clear();
         System.out.println("Select house number: UP+/DOWN-, ENTER confirm");
@@ -106,43 +108,87 @@ public class PizzaDelivery {
                 break;
             }
             if (Button.UP.isDown()) {
-                houseNumber += 1;
-                System.out.println("Current number: " + housenumber);
+                housenumber += 1;
+                System.out.println("Curr number: " + housenumber);
                 while (Button.UP.isDown()) ;
             }
             if (Button.DOWN.isDown()) {
-                houseNumber -= 1;
-                System.out.println("Current number: " + housenumber);
+                housenumber -= 1;
+                System.out.println("Curr number: " + housenumber);
                 while (Button.DOWN.isDown()) ;
             }
         }
-        System.out.println("House number confirmed: " + housenumber);
-
+        System.out.println("Housenumber confirmed: " + housenumber);
+        while(!Button.ENTER.isDown()){
+        	while(Button.ENTER.isDown());
+        }
         char[] res = new char[4];
         res[0] = pizzachoice;
         res[1] = circlechoice;
         res[2] = houseside;
-        res[3] = housenumber;
+        res[3] = (char)housenumber;
+        
         return res;
     }
 
 
-    private static void steerToPizzaLocation(pizzachoice) {
+    private static void rotateRobot(double angle) {
+    	// angle<0 then turn right;
+    	// angle>0 then turn left
+    	angle = angle * 0.95;
+        Motor.B.setSpeed(BASE_SPEED/2);
+        Motor.C.setSpeed(BASE_SPEED/2);
+        int tiltSampleSize = tilt.sampleSize();
+        float[] tiltSample = new float[tiltSampleSize];
+        tilt.getAngleMode().fetchSample(tiltSample, 0);
+        
+        float startAngle = tiltSample[0];
+       
+        double startTime = System.currentTimeMillis();
+        if (angle < 0) {
+        	double rotatedAngle = tiltSample[0] - startAngle;
+        	while (rotatedAngle > angle) {
+	        	Motor.C.backward();
+	        	Motor.B.forward();
+	        	tilt.getAngleMode().fetchSample(tiltSample, 0);
+	        	rotatedAngle = tiltSample[0] - startAngle;
+	        	System.out.println(rotatedAngle + " " + angle);
+	        	double currTime = System.currentTimeMillis();
+	        	if (currTime - startTime > 5000) break;
+        	}
+        	
+        } else {
+        	double rotatedAngle = tiltSample[0] - startAngle;
+        	while (rotatedAngle < angle) {
+	        	Motor.B.backward();
+	        	Motor.C.forward();
+	        	tilt.getAngleMode().fetchSample(tiltSample, 0);
+	        	rotatedAngle = tiltSample[0] - startAngle;
+	        	System.out.println(rotatedAngle + " " + angle);
+	        	double currTime = System.currentTimeMillis();
+	        	if (currTime - startTime > 5000) break;
+        	}
+        }
+        Motor.B.setSpeed(BASE_SPEED);
+        Motor.C.setSpeed(BASE_SPEED);
+        
+    }
+    private static void steerToPizzaLocation(char pizzachoice) {
         Motor.B.setSpeed(BASE_SPEED);
         Motor.C.setSpeed(BASE_SPEED);
 
-        Motor.B.rotate((int)(12 / l), true);
-        Motor.C.rotate((int)(12 / l));
+        Motor.B.rotate((int)(20 / l), true);
+        Motor.C.rotate((int)(20 / l));
         if (pizzachoice == 0) { // left one
-            Motor.B.rotate(-RIGHT_ANGLE, true);
-            Motor.C.rotate(RIGHT_ANGLE);
+        	rotateRobot(90);
+            //Motor.B.rotate(-RIGHT_ANGLE, true);
+            //Motor.C.rotate(RIGHT_ANGLE);
         } else {
-            Motor.B.rotate(RIGHT_ANGLE, true);
-            Motor.C.rotate(-RIGHT_ANGLE);
+        	rotateRobot(-90);
         }
-        Motor.B.rotate((int)((575-ROBOT_LENGTH) / l), true);
+        Motor.B.rotate((int)((55-ROBOT_LENGTH) / l), true);
         // FIXME - should deduct by the length of robot
-        Motor.C.rotate((int)((575-ROBOT_LENGTH) / l));
+        Motor.C.rotate((int)((55-ROBOT_LENGTH) / l));
     }
 
     private static void fetchPizza() {
@@ -151,31 +197,30 @@ public class PizzaDelivery {
 
     }
 
-    private static void steerBackToCenter(pizzachoice) {
-        Motor.B,setSpeed(BASE_SPEED);
+    private static void steerBackToCenter(char pizzachoice) {
+        Motor.B.setSpeed(BASE_SPEED);
         Motor.C.setSpeed(BASE_SPEED);
-        Motor.B.rotate(-(int)((57.5-ROBOT_LENGTH) / l), true);
-        Motor.C.rotate(-(int)((57.5-ROBOT_LENGTH) / l));
+        Motor.B.rotate(-(int)((55-ROBOT_LENGTH) / l), true);
+        Motor.C.rotate(-(int)((55-ROBOT_LENGTH) / l));
 
         if (pizzachoice == 0) { // left pizza. I should turn right now
-            Motor.B.rotate(RIGHT_ANGLE, true);
-            Motor.C.rotate(-RIGHT_ANGLE);
+        	rotateRobot(-90);
+            
         } else {
-            Motor.B.rotate(-RIGHT_ANGLE, true);
-            Motor.C.rotate(RIGHT_ANGLE);
+        	rotateRobot(90);
         }
 
 
     }
 
-    private static void distdiff(double x, double y, double x_tgt, double y_tgt) {
+    private static double distdiff(double x, double y, double x_tgt, double y_tgt) {
         return Math.sqrt((x-x_tgt)*(x-x_tgt) + (y-y_tgt)*(y-y_tgt));
     }
 
-    private static void steerToColor(userSelectionList) {
+    private static void steerToColor(char[] userSelectionList) {
         // Needs to avoid obstacles and record distances
         x = 0; // in centimeters
-        y = 12; // in centimeters
+        y = 2; // in centimeters
         double x_tgt, y_tgt;
         double bprev = 0, cprev = 0;
 
@@ -183,7 +228,7 @@ public class PizzaDelivery {
 
         int gyroSampleSize = tilt.sampleSize();
 
-        float[] tiltSample = new float[gyroSampleSize];
+        float[] tiltsample = new float[gyroSampleSize];
 
         int colorSampleSize = color.sampleSize();
         float[] colorSample = new float[colorSampleSize];
@@ -191,32 +236,41 @@ public class PizzaDelivery {
 
         if (userSelectionList[1] == 0) {
             x_tgt = -29.5;
-            y_tgt = 1927 + 30;
+            y_tgt = 192.7 + 3;
         } else if (userSelectionList[1] == 1) {
             x_tgt = 0;
-            y_tgt = 1927;
-        } else if (userSelectionList[1] == 2) {
-            x_tgt = 305;
-            y_tgt = 1955;
+            y_tgt = 192.7;
+        } else { // (userSelectionList[1] == 2)
+            x_tgt = 30.5;
+            y_tgt = 195.5;
         }
-        while (distdiff(x, y, x_tgt, y_tgt) > 10) {
+        while (distdiff(x, y, x_tgt, y_tgt) > 1.0) {
             double K_p = 5;
             double theta_d = 0;
+            
+            /*
             if (x_tgt > x) {
-                theta_d = Math.atan((y_tgt - y) / (x_tgt - x));
+                theta_d = Math.atan((y_tgt - y) / (x_tgt - x)) * 180 / Math.PI;
             } else if (x_tgt < x){
-                theta_d = Math.atan((y_tgt - y) / (x_tgt - x));
+                theta_d = Math.atan((y_tgt - y) / (x_tgt - x)) * 180 / Math.PI;
             } else {
-                theta_d = Math.pi / 2;
+                theta_d = 90;
+            }
+            */
+            if (x_tgt - x < 0.001) {
+            	theta_d = 90;
+            } else if (x_tgt > x) {
+            	theta_d = Math.atan((y_tgt - y) / (x_tgt - x)) / Math.PI * 180;          	
+            } else if (x_tgt < x) {
+            	theta_d = Math.atan((y_tgt - y) / (x_tgt - x)) / Math.PI * 180 + 180;
             }
             tilt.getAngleMode().fetchSample(tiltsample, 0);
-            double theta = tiltsample[0] - GYRO_OFFSET + Math.pi / 2;
-            double v_diff = K_p * (theta_d - theta);
-            Motor.B.setSpeed(BASE_SPEED - v_diff);
-            Motor.C.setSpeed(BASE_SPEED + v_diff);
+            double theta = tiltsample[0] - GYRO_OFFSET + 90;
+            rotateRobot(theta_d - theta);
+
             Motor.B.forward();
             Motor.C.forward();
-
+            
             // update x and y
             double bcurr = Motor.B.getPosition();
             double ccurr = Motor.C.getPosition();
@@ -225,12 +279,14 @@ public class PizzaDelivery {
             bprev = bcurr;
             cprev = ccurr;
             double vdt = (brot + crot) / 2 * l;
-            x += (vdt * Math.cos(theta));
-            y += (vdt * Math.sin(theta));
+            x += (vdt * Math.cos(theta * Math.PI / 180));
+            y += (vdt * Math.sin(theta * Math.PI / 180));
 
             // Add obstacle avoidance code
-            color.getRedMode().fetchSample(sample, 0);
-            if (colorSample[0] > THRESHOLD) {
+           
+            color.getRedMode().fetchSample(colorSample, 0);
+            double THRESHOLD = 1.0;
+            if (colorSample[0] * 100 > THRESHOLD) {
                 double[] stateRecorder = new double[3];
                 stateRecorder[0] = x;
                 stateRecorder[1] = y;
@@ -238,10 +294,10 @@ public class PizzaDelivery {
                 circumventObstacle(stateRecorder);
                 x = stateRecorder[0];
                 y = stateRecorder[1];
-                z = stateRecorder[2];
+                theta = stateRecorder[2];
             }
 
-
+            System.out.println(String.format("x=%.1f, y=%.1f, t=%.1f", x,y,theta));
         }
 
 
@@ -249,10 +305,8 @@ public class PizzaDelivery {
 
     private static void circumventObstacle(double[] stateRecorder) {
         // Turn right 90 deg;
-        Motor.B.setSpeed(BASE_SPEED);
-        Motor.C.setSpeed(BASE_SPEED);
-        Motor.B.rotate(RIGHT_ANGLE, true);
-        Motor.C.rotate(-RIGHT_ANGLE);
+
+        rotateRobot(-90);
 
 
 
@@ -269,7 +323,7 @@ public class PizzaDelivery {
             // FIXME - make sure all sensor arrays are initialized before visited
             sonic.fetchSample(sonicsample, 0);
 
-            double K_p = 0.1;
+            double K_p = 0.05;
             double err = DIST_FOLLOW - sonicsample[0];
             int v_diff = (int)(err * K_p);
 
@@ -279,37 +333,29 @@ public class PizzaDelivery {
             Motor.B.forward();
             Motor.C.forward();
         }
+        
+        Motor.B.rotate((int)ROBOT_LENGTH);
+        Motor.C.rotate((int)ROBOT_LENGTH);
 
     }
-    private static void pivotAndDeliverPizza(userSelectionList) {
+    private static void pivotAndDeliverPizza(char[] userSelectionList) {
         // Assume that the robot already arrived at either of green, blue, and red circle.
         if (userSelectionList[1] == 0) {
             // turn left for 28.5 deg
-            double angle = 28.5 / 90.0 * RIGHT_ANGLE;
-            Motor.B.setSpeed(BASE_SPEED);
-            Motor.C.setSpeed(BASE_SPEED);
-            Motor.B.rotate(-(int)angle, true);
-            Motor.C.rotate((int)angle);
+        	rotateRobot(28.5);
         } else if (userSelectionList[1] == 1) {
             ; // Go straight
         } else {
-            double angle = 30.5 / 90.0 * RIGHT_ANGLE;
-            Motor.B.setSpeed(BASE_SPEED);
-            Motor.C.setSpeed(BASE_SPEED);
-            Motor.B.rotate((int)angle, true);
-            Motor.C.rotate(-(int)angle);
+        	rotateRobot(-30.5);
         }
 
 
         // Then proceed to delivering the pizza. Since our ultrasonic sensor is at left side,
         // if the house is supposed to be at the right side, turn around and go backwards.
-        int backwards = 0;
+        boolean backwards = false;
         if (userSelectionList[2] == 1) { // house at the right side
-            backwards = 1;
-            Motor.B.setSpeed(BASE_SPEED);
-            Motor.C.setSpeed(BASE_SPEED);
-            Motor.B.rotate(2*RIGHT_ANGLE, true);
-            Motor.C.rotate(-2*RIGHT_ANGLE);
+            backwards = true;
+            rotateRobot(180);
         }
 
         int houseCount = 0;
@@ -320,8 +366,10 @@ public class PizzaDelivery {
 
         double[] medianFilter = {0,0,0};
 
+        double startTime = System.currentTimeMillis();
         while (y < 356.7) {
-            if (houseCount == userSelectionList[3]) {
+        	double currTime = System.currentTimeMillis();
+            if (houseCount == userSelectionList[3] || (currTime - startTime) > 60000) {
                 dropPizza();
                 // TODO - let robot steer until reaching the base line.
                 double diff_y = 356.7 - y;
@@ -331,6 +379,7 @@ public class PizzaDelivery {
                 } else if (userSelectionList[1] == 2) {
                     alpha = 30.5;
                 }
+                alpha = alpha * Math.PI / 180;
                 double comp_length = (diff_y) / Math.cos(alpha);
                 Motor.B.rotate((int)(comp_length / l * (backwards ? (-1) : 1)), true);
                 Motor.C.rotate((int)(comp_length / l * (backwards ? (-1) : 1)));
@@ -339,16 +388,15 @@ public class PizzaDelivery {
                 Motor.C.stop();
 
                 if (backwards) {
-                    Motor.B.rotate(2*RIGHT_ANGLE, true);
-                    Motor.C.rotate(-2*RIGHT_ANGLE);
+                	rotateRobot(180);
                 }
                 break;
             }
             Motor.B.setSpeed(BASE_SPEED);
             Motor.C.setSpeed(BASE_SPEED);
             if (backwards) {
-                Motor.B.backwards();
-                Motor.C.backwards();
+                Motor.B.backward();
+                Motor.C.backward();
             } else {
                 Motor.B.forward();
                 Motor.C.forward();
@@ -362,10 +410,10 @@ public class PizzaDelivery {
 
             int gyroSampleSize = tilt.sampleSize();
             float[] tiltSample = new float[gyroSampleSize];
-            tilt.getAngleMode().fetchSample(tiltSample);
+            tilt.getAngleMode().fetchSample(tiltSample, 0);
             double theta = tiltSample[0] - GYRO_OFFSET;
-            x += (vdt * Math.cos(theta) * (backwards? (-1) : 1));
-            y += (vdt * Math.sin(theta) * (backwards? (-1) : 1));
+            x += (vdt * Math.cos(theta * Math.PI / 180) * (backwards? (-1) : 1));
+            y += (vdt * Math.sin(theta * Math.PI / 180) * (backwards? (-1) : 1));
 
             bprev = bcurr;
             cprev = ccurr;
@@ -378,7 +426,7 @@ public class PizzaDelivery {
             sonic.fetchSample(sonicsample, 0);
             medianFilter[0] = medianFilter[1];
             medianFilter[1] = medianFilter[2];
-            medianFilter[2] = sonicSample[0];
+            medianFilter[2] = sonicsample[0];
             double processedDist = median(medianFilter);
 
             if (processedDist > 1.0) {
@@ -399,8 +447,7 @@ public class PizzaDelivery {
     private static void dropPizza() {
         // rotate left 90 deg, forward a bit, drop, then back a bit, rotate back
 
-        Motor.B.rotate(-RIGHT_ANGLE, true);
-        Motor.C.rotate(RIGHT_ANGLE);
+    	rotateRobot(90);
 
         Motor.B.rotate((int)(10 / l), true);
         Motor.C.rotate((int)(10 / l));
@@ -411,8 +458,7 @@ public class PizzaDelivery {
         Motor.B.rotate(-(int)(10 / l), true);
         Motor.C.rotate(-(int)(10 / l));
 
-        Motor.B.rotate(RIGHT_ANGLE);
-        Motor.C.rotate(-RIGHT_ANGLE, true);
+        rotateRobot(-90);
     }
 
     private static double median(double[] A) {
@@ -428,36 +474,32 @@ public class PizzaDelivery {
         // Now we know x, y, and theta
         int gyroSampleSize = tilt.sampleSize();
         float[] tiltSample = new float[gyroSampleSize];
-        tilt.getAngleMode().fetchSample(tiltSample);
+        tilt.getAngleMode().fetchSample(tiltSample, 0);
 
         Motor.B.setSpeed(BASE_SPEED);
         Motor.C.setSpeed(BASE_SPEED);
 
         // Steer towards positive x axis orientation
         tiltSample[0] -= GYRO_OFFSET;
-        Motor.B.rotate(+(int)((Math.pi/2-tiltSample[0]) / (Math.pi/2) * RIGHT_ANGLE), true);
-        Motor.C.rotate(-(int)((Math.pi/2-tiltSample[0]) / (Math.pi/2) * RIGHT_ANGLE));
-
+        rotateRobot(-(90-tiltSample[0]));
+        
         // First steer to the closest position on boundary line at x=110, y=396.5
         double delta_x = 110 - x;
         Motor.B.rotate((int)(delta_x / l), true);
         Motor.C.rotate((int)(delta_x / l));
 
         // Then steer all the way back to the origin position and status
-        Motor.B.rotate(RIGHT_ANGLE, true);
-        Motor.C.rotate(-RIGHT_ANGLE);
+        rotateRobot(-90);
 
         Motor.B.rotate((int) (397 / l), true);
         Motor.C.rotate((int) (397 / l));
 
-        Motor.B.rotate(RIGHT_ANGLE, true);
-        Motor.C.rotate(-RIGHT_ANGLE);
+        rotateRobot(-90);
 
         Motor.B.rotate((int) (126.5 / l), true);
         Motor.C.rotate((int) (126.5 / l));
 
-        Motor.B.rotate(RIGHT_ANGLE, true);
-        Motor.C.rotate(-RIGHT_ANGLE);
+        rotateRobot(-90);
 
     }
     public static void main(String[] args) throws Exception {
@@ -469,8 +511,8 @@ public class PizzaDelivery {
         steerBackToCenter(userSelectionList[0]);
         steerToColor(userSelectionList);
 
-        pivotAndDeliverPizza(userSelectionList);
+        //pivotAndDeliverPizza(userSelectionList);
 
-        steerBackAfterDelivery();
+        //steerBackAfterDelivery();
     }
 }
