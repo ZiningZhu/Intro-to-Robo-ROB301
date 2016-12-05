@@ -34,9 +34,11 @@ public class PizzaDelivery {
     // Three sensors, corresponding to our three sensor ports
 
 
-    private static double GYRO_OFFSET = 0;
+    private static double GYRO_OFFSET;
+    // The initial position of the robot minus 90 
+    // (so gyrosensor number - GYRO_OFFSET == current theta in the Cartesian coordinate)
 
-    private static void initialize(){
+    private static void initSensors(){
         // Initialize the sensors
         sonic = new EV3UltrasonicSensor(SensorPort.S1);
         color = new EV3ColorSensor(SensorPort.S2);
@@ -51,8 +53,7 @@ public class PizzaDelivery {
         int tiltSampleSize = tilt.sampleSize();
         float[] tiltSample = new float[tiltSampleSize];
         tilt.getAngleMode().fetchSample(tiltSample, 0);
-        GYRO_OFFSET = tiltSample[0];
-
+        GYRO_OFFSET = tiltSample[0] - 90;
 
     }
     private static char[] getInputInterface() {
@@ -150,7 +151,7 @@ public class PizzaDelivery {
     	* angle>0 then turn left;
         * rotate until the robot rotates the desired angle (double)
         */
-    	angle = angle * 0.95;
+    	//angle = angle * 0.95;
         Motor.B.setSpeed(BASE_SPEED/2);
         Motor.C.setSpeed(BASE_SPEED/2);
         int tiltSampleSize = tilt.sampleSize();
@@ -167,9 +168,8 @@ public class PizzaDelivery {
 	        	Motor.B.forward();
 	        	tilt.getAngleMode().fetchSample(tiltSample, 0);
 	        	rotatedAngle = tiltSample[0] - startAngle;
-	        	System.out.println(rotatedAngle + " " + angle);
-	        	double currTime = System.currentTimeMillis();
-	        	if (currTime - startTime > 5000) break;
+	        	//System.out.println(rotatedAngle + " " + tiltSample[0]);
+	        	
         	}
 
         } else {
@@ -179,9 +179,8 @@ public class PizzaDelivery {
 	        	Motor.C.forward();
 	        	tilt.getAngleMode().fetchSample(tiltSample, 0);
 	        	rotatedAngle = tiltSample[0] - startAngle;
-	        	System.out.println(rotatedAngle + " " + angle);
-	        	double currTime = System.currentTimeMillis();
-	        	if (currTime - startTime > 5000) break;
+	        	System.out.println(rotatedAngle + " " + tiltSample[0]);
+	        	
         	}
         }
         Motor.B.setSpeed(BASE_SPEED);
@@ -224,7 +223,6 @@ public class PizzaDelivery {
         	rotateRobot(90);
         }
 
-
     }
 
     private static double distdiff(double x, double y, double x_tgt, double y_tgt) {
@@ -260,7 +258,8 @@ public class PizzaDelivery {
             y_tgt = 195.5;
         }
         while (distdiff(x, y, x_tgt, y_tgt) > 1.0) {
-            double K_p = 5;
+            double K_pt = 0.2;
+            double K_pv = 0.01;
             double theta_d = 0;
 
             /* Steer to a fixed point (either of the three color circles):
@@ -279,9 +278,16 @@ public class PizzaDelivery {
             	theta_d = Math.atan((y_tgt - y) / (x_tgt - x)) / Math.PI * 180 + 180;
             }
             tilt.getAngleMode().fetchSample(tiltsample, 0);
-            double theta = tiltsample[0] - GYRO_OFFSET + 90;
-            rotateRobot(theta_d - theta);
-
+            double theta = tiltsample[0] - GYRO_OFFSET;
+            
+            
+            
+            double delta = K_pt * (theta_d - theta);
+            double vbase = BASE_SPEED * K_pv * distdiff(x, y, x_tgt, y_tgt);
+            double lspeed = vbase - delta;
+            double rspeed = vbase + delta;
+            Motor.B.setSpeed((float)lspeed);
+            Motor.C.setSpeed((float)rspeed);
             Motor.B.forward();
             Motor.C.forward();
 
@@ -310,12 +316,12 @@ public class PizzaDelivery {
                 theta = stateRecorder[2];
             }
 
-            System.out.println(String.format("x=%.1f, y=%.1f, t=%.1f", x,y,theta));
+            System.out.println(String.format("td=%.1f, t=%.1f", theta_d, theta));
 
             // Exception handling code: when steering does not work and robot hits the boundary
             // Stop, and freeze until a button is pressed.
             if (x < -160 || x > 160 || y < 0 || y > 400) {
-                System.out.println("Out of Range!")
+                System.out.println("Out of Range!");
                 while (!Button.ENTER.isDown()) {
                     while (Button.ENTER.isDown()) ;
                 }
@@ -364,9 +370,9 @@ public class PizzaDelivery {
             double err = DIST_FOLLOW - sonicsample[0];
             int v_diff = (int)(err * K_p);
 
-            double leftSpeed = capping(BASE_SPEED - v_diff);
-            double rightSpeed = capping(BASE_SPEED + v_diff);
-            Motor.B.setSpeed((int)leftSpeed));
+            int leftSpeed = capping(BASE_SPEED - v_diff);
+            int rightSpeed = capping(BASE_SPEED + v_diff);
+            Motor.B.setSpeed((int)leftSpeed);
             Motor.C.setSpeed((int)rightSpeed);
 
             Motor.B.forward();
@@ -377,13 +383,13 @@ public class PizzaDelivery {
         Motor.B.rotate((int)ROBOT_LENGTH);
         Motor.C.rotate((int)ROBOT_LENGTH);
 
-        // turn back (left) 90 degs
-        rotateRobot(-90);
+        // turn back (left) 80 degs
+        rotateRobot(-80);
     }
 
     private static int capping(int v) {
         /*Clamps the speed so that P controller will not be too crazy*/
-        return Math.max(0.5*BASE_SPEED, Math.min(1.5*BASE_SPEED, v));
+        return (int)Math.max(0.5*BASE_SPEED, Math.min(1.5*BASE_SPEED, v));
     }
 
     private static void pivotAndDeliverPizza(char[] userSelectionList) {
@@ -451,6 +457,7 @@ public class PizzaDelivery {
                 Motor.B.forward();
                 Motor.C.forward();
             }
+            /* Record and update distances */
             double bcurr, ccurr;
             bcurr = Motor.B.getPosition();
             ccurr = Motor.C.getPosition();
@@ -556,9 +563,9 @@ public class PizzaDelivery {
 
     }
     public static void main(String[] args) throws Exception {
-        initialize();
+        
         char[] userSelectionList = getInputInterface();
-
+        initSensors();
         steerToPizzaLocation(userSelectionList[0]);
         fetchPizza();
         steerBackToCenter(userSelectionList[0]);

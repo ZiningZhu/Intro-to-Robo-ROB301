@@ -27,12 +27,13 @@ The steering of this robot depends on two differentially driven servo motors pla
   - Turn for an angle  
   - Steer to a fixed position  
 
-
+#### Estimate the current location  
 
 #### Pizza Pick and Deliver  
 
 #### Obstacle Avoidance
 - Wall following
+- Exception handling: when robot hits the boundary  
 
 #### House Detection and Delivery
 - Ultrasonic sensor
